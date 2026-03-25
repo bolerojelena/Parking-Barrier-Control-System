@@ -1,0 +1,9 @@
+FLIP
+1. connect - COM(3)
+2. file - load hex
+3. run
+4. start app
+
+TERMITE
+[settings <- podeseno]
+5.  tu ispisuje nakon sto prvi udje

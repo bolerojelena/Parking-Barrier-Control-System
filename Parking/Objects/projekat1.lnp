@@ -1,0 +1,10 @@
+".\Objects\main.obj",
+".\Objects\gpio.obj",
+".\Objects\timer.obj",
+".\Objects\prekidi.obj",
+".\Objects\serijska_komunikacija.obj",
+".\Objects\cobs_protokol.obj",
+".\Objects\display.obj",
+".\Objects\poruka.obj" 
+TO ".\Objects\projekat1" 
+PRINT(".\Listings\projekat1.m51") RAMSIZE(256) 

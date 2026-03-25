@@ -1,0 +1,65 @@
+C51 COMPILER V9.60.7.0   PORUKA                                                            01/14/2025 12:52:11 PAGE 1   
+
+
+C51 COMPILER V9.60.7.0, COMPILATION OF MODULE PORUKA
+OBJECT MODULE PLACED IN .\Objects\poruka.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE poruka.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\po
+                    -ruka.lst) TABS(2) OBJECT(.\Objects\poruka.obj)
+
+line level    source
+
+   1          #include "poruka.h"
+   2          #include "serijska_komunikacija.h"
+   3          
+   4          #include "cobs_protokol.h"
+   5          
+   6          //uint8_t odgovor_OK[] = {0x01};
+   7          //uint8_t odgovor_GRESKA[] = {0x00};
+   8          
+   9          uint8_t* kodirana_poruka; // maks duzina = 4 <- 2 cifre + begin i end
+  10          uint8_t* poruka; // maks 2 cifre + null terminator 0x00
+  11          
+  12          void posalji_broj_automobila(uint16_t broj_automobila)
+  13          {
+  14   1        uint16_t duzina_poruke = 0;
+  15   1        uint16_t duzina_kodirane_poruke = 0;
+  16   1        
+  17   1      //  if (broj_automobila > 15) // realno ne treba
+  18   1      //  {
+  19   1      //    posalji_poruku(odgovor_GRESKA, 1);
+  20   1      //  }
+  21   1      
+  22   1        if (broj_automobila < 10) 
+  23   1        {
+  24   2          poruka[0] = '0' + broj_automobila;
+  25   2          duzina_poruke = 1;
+  26   2        }
+  27   1        else 
+  28   1        {
+  29   2          poruka[0] = '0' + (broj_automobila / 10); // posto je BINARNO
+  30   2          poruka[1] = '0' + (broj_automobila % 10);
+  31   2          duzina_poruke = 2;
+  32   2        }
+  33   1        
+  34   1        kodirana_poruka = kodiraj_poruku(poruka, duzina_poruke);  // duzina_kodirane = duzina_poruke + 2 karakter
+             -a (begin i end)
+  35   1        duzina_kodirane_poruke = duzina_poruke + 2;
+  36   1        
+  37   1        posalji_poruku(kodirana_poruka, duzina_kodirane_poruke);
+  38   1        posalji_poruku(odgovor_OK, 1);
+  39   1        
+  40   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    143    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      6       6
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

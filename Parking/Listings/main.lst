@@ -1,0 +1,322 @@
+C51 COMPILER V9.60.7.0   MAIN                                                              06/17/2025 15:03:57 PAGE 1   
+
+
+C51 COMPILER V9.60.7.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main
+                    -.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          /* Implementirati program za rad parking rampe. 
+   2          
+   3          Rampa se sastoji od motora koji moze da se okrece u dva smera (podizanje i spustanje rampe) 
+   4          koji se kontrolise pomocu dva digitalna izlaza. 
+   5          
+   6          Na samoj rampi se nalaze dva granicna prekidaca koji govore o krajnjim polozajima rampe (rampa spustena, r
+             -ampa podignuta). 
+   7          Sistem takode poseduje i dva potpatosna prekidaca koja govore o tome da li automobil hoce da ude na parkin
+             -g ili izade. 
+   8          
+   9          Parking može da primi maksimalno 15 automobila. 
+  10          
+  11          Algoritam rada je sledeci: kada automobil pride rampi, aktivan je potpatosni prekidac na ulazu, rampa se p
+             -odiže. 
+  12          Kada rampa stigne do kraja, ostaje u tom položaju 5 sec. da bi kola mogla nesmetano da produ ispod rampe. 
+  13          Posle 5sec rampa se spusta i ostaje spuštena dok se ne pojave vozila na ulazu ili izlazu. 
+  14          
+  15          Stanje o zauzetosti parking mesta prikazati na displeju i slati serijskom komunikacijom na PC. */
+  16          
+  17          
+  18          #include "at89c51rc2.h"
+  19          #include "tipovi.h"
+  20          #include "gpio.h"
+  21          
+  22          #include "timer.h"
+  23          #include "prekidi.h"
+  24          #include "serijska_komunikacija.h"
+  25          
+  26          #include "display.h"
+  27          
+  28          #include "poruka.h"
+  29          
+  30          #define MAX_AUTOMOBILA 15
+  31          
+  32          uint16_t broj_automobila = 0;
+  33          
+  34          uint8_t ulazi = 0;
+  35          uint8_t izlazi = 0;
+  36          //========================== TIMER.H ==========================
+  37          uint8_t cekaj_5s = 0;
+  38          //====================//==================//===================
+  39          uint8_t proslo_5s_spusti = 0;
+  40          
+  41          void main(void)
+  42          {
+  43   1        uint8_t stanjeTasteraP0_0 = 1;
+  44   1        uint8_t predhodnoStanjeTasteraP0_0 = 1;
+  45   1        uint8_t stanjeTasteraP0_1 = 1;
+  46   1        uint8_t predhodnoStanjeTasteraP0_1 = 1;
+  47   1        uint8_t stanjeTasteraP0_2 = 1;
+  48   1        uint8_t predhodnoStanjeTasteraP0_2 = 1;
+  49   1        uint8_t stanjeTasteraP0_3 = 1;
+  50   1        uint8_t predhodnoStanjeTasteraP0_3 = 1;
+  51   1        
+C51 COMPILER V9.60.7.0   MAIN                                                              06/17/2025 15:03:57 PAGE 2   
+
+  52   1        uint16_t motor = 0;
+  53   1        
+  54   1        uint8_t granicni_prekidac_podignuta = 0;
+  55   1        uint8_t granicni_prekidac_spustena = 0;
+  56   1        uint8_t potpatosni_prekidac_ulazi = 0;
+  57   1        uint8_t potpatosni_prekidac_izlazi = 0;
+  58   1        
+  59   1        uint8_t tmod = 0x20;
+  60   1        //========================== INICIJALIZACIJA ==========================
+  61   1        init_gpio();
+  62   1        
+  63   1        init_timer(tmod, 0x00, 0x47);
+  64   1        omoguci_prekid_tajmera();
+  65   1        omoguci_sve_prekide();
+  66   1        start_timer();
+  67   1      
+  68   1        CKCON0 &= 0xFF;
+  69   1        init_serijska(0x80, 0x50, 0x1C, 253);
+  70   1        omoguci_prekid_serijske(1);
+  71   1        
+  72   1        initDisplay();
+  73   1        clearDisplay();
+  74   1        
+  75   1        // samo da bi odmah ispisao - treba proveriti da li radi ********
+  76   1      //  clearDisplay();
+  77   1      //  writeLine("Paking: ");
+  78   1      //  newLine();
+  79   1      //  writeChar((broj_automobila / 10) + '0');
+  80   1      //  writeChar((broj_automobila % 10) + '0');
+  81   1      //  posalji_broj_automobila(broj_automobila);
+  82   1          
+  83   1        while(1)
+  84   1        {
+  85   2          //================= OCITAVANJE ULAZA - TASTERA =====================
+  86   2          // debounce
+  87   2          stanjeTasteraP0_0 = trenutnoSoftverskoStanjeP0_0;
+  88   2          stanjeTasteraP0_1 = trenutnoSoftverskoStanjeP0_1;
+  89   2          stanjeTasteraP0_2 = trenutnoSoftverskoStanjeP0_2;
+  90   2          stanjeTasteraP0_3 = trenutnoSoftverskoStanjeP0_3;
+  91   2          
+  92   2          if(stanjeTasteraP0_0 < predhodnoStanjeTasteraP0_0)
+  93   2          {
+  94   3            granicni_prekidac_podignuta = granicni_prekidac_podignuta ? 0 : 1;
+  95   3          }
+  96   2          if(stanjeTasteraP0_1 < predhodnoStanjeTasteraP0_1)
+  97   2          {
+  98   3            granicni_prekidac_spustena = granicni_prekidac_spustena ? 0 : 1;
+  99   3          }
+ 100   2          if(stanjeTasteraP0_2 < predhodnoStanjeTasteraP0_2)
+ 101   2          {
+ 102   3            potpatosni_prekidac_ulazi = potpatosni_prekidac_ulazi ? 0 : 1;
+ 103   3          }
+ 104   2          if(stanjeTasteraP0_3 < predhodnoStanjeTasteraP0_3)
+ 105   2          {
+ 106   3            potpatosni_prekidac_izlazi = potpatosni_prekidac_izlazi ? 0 : 1;
+ 107   3          }
+ 108   2          
+ 109   2          //========================== LOGIKA ==========================
+ 110   2          /* Algoritam rada je sledeci: kada automobil pride rampi, aktivan je potpatosni prekidac na ulazu, rampa
+             - se podiže. 
+ 111   2          Kada rampa stigne do kraja, ostaje u tom položaju 5 sec. da bi kola mogla nesmetano da produ ispod rampe
+             -. 
+C51 COMPILER V9.60.7.0   MAIN                                                              06/17/2025 15:03:57 PAGE 3   
+
+ 112   2          Posle 5sec rampa se spusta i ostaje spuštena dok se ne pojave vozila na ulazu ili izlazu. */
+ 113   2          
+ 114   2          if(granicni_prekidac_podignuta)     // zastita prekidaca rampe
+ 115   2            granicni_prekidac_spustena = 0;
+ 116   2          if(granicni_prekidac_spustena)
+ 117   2            granicni_prekidac_podignuta = 0;
+ 118   2          
+ 119   2          if(motor == 1)  // zastita uslova rada motora
+ 120   2          {
+ 121   3            granicni_prekidac_spustena = 0;
+ 122   3          }
+ 123   2          if(motor == 2)
+ 124   2          {
+ 125   3            granicni_prekidac_podignuta = 0;
+ 126   3          }
+ 127   2          
+ 128   2          //====================== automatsko spustanje rampe =======================
+ 129   2          if(proslo_5s_spusti)
+ 130   2          {
+ 131   3            if(!granicni_prekidac_spustena)
+ 132   3            {
+ 133   4              motor = 2;
+ 134   4            }
+ 135   3            else
+ 136   3            {
+ 137   4              motor = 0;
+ 138   4              proslo_5s_spusti = 0;
+ 139   4              
+ 140   4              if(potpatosni_prekidac_ulazi)
+ 141   4              {
+ 142   5                potpatosni_prekidac_ulazi = 0;
+ 143   5                broj_automobila++;
+ 144   5              }
+ 145   4              if(potpatosni_prekidac_izlazi)
+ 146   4              {
+ 147   5                potpatosni_prekidac_izlazi = 0;
+ 148   5                broj_automobila--;
+ 149   5              }
+ 150   4              
+ 151   4              // ako je doslo do promene, ispisuje se izmena stanja
+ 152   4              // rst prosle akcijje
+ 153   4              potpatosni_prekidac_ulazi = 0;
+ 154   4              potpatosni_prekidac_izlazi = 0;
+ 155   4              
+ 156   4              //========================== DISPLAY I SK ==========================
+ 157   4              clearDisplay();
+ 158   4              
+ 159   4              writeLine("Paking: ");
+ 160   4              newLine();
+ 161   4              writeChar((broj_automobila / 10) + '0');
+ 162   4              writeChar((broj_automobila % 10) + '0');
+ 163   4              
+ 164   4              posalji_broj_automobila(broj_automobila); // OVO PROVERITI - COBS
+ 165   4            }
+ 166   3          }
+ 167   2          //==========================//==========================//==============
+ 168   2          
+ 169   2          //========================== setovanje akcije ==========================
+ 170   2          if(potpatosni_prekidac_ulazi && !proslo_5s_spusti)
+ 171   2          {
+ 172   3            if(broj_automobila < MAX_AUTOMOBILA)
+ 173   3              ulazi = 1;
+C51 COMPILER V9.60.7.0   MAIN                                                              06/17/2025 15:03:57 PAGE 4   
+
+ 174   3          } // kraj ppu
+ 175   2          else
+ 176   2            ulazi = 0;
+ 177   2          
+ 178   2          if(potpatosni_prekidac_izlazi && !proslo_5s_spusti)
+ 179   2          {
+ 180   3            if(broj_automobila > 0)
+ 181   3              izlazi = 1;
+ 182   3          } // kraj ppi
+ 183   2          else
+ 184   2            izlazi = 0;
+ 185   2          
+ 186   2          //================= DOZVOLJENE AKCIJE ULAZI/IZLAZI =====================
+ 187   2          if((ulazi && !izlazi) || (izlazi && !ulazi))
+ 188   2          {
+ 189   3            if(!granicni_prekidac_podignuta)
+ 190   3            {
+ 191   4              motor = 1;
+ 192   4            }
+ 193   3            else
+ 194   3            {
+ 195   4              motor = 0;
+ 196   4              cekaj_5s = 1; // pusti timer
+ 197   4              
+ 198   4              if(proslo_5s)
+ 199   4              {
+ 200   5                proslo_5s_spusti = 1;
+ 201   5                proslo_5s = 0;
+ 202   5                cekaj_5s = 0;
+ 203   5                
+ 204   5                if(ulazi)
+ 205   5                  ulazi = 0;
+ 206   5                if(izlazi)
+ 207   5                  izlazi = 0;
+ 208   5              }
+ 209   4            }
+ 210   3          }
+ 211   2          //======================= NEDOZVOLJENE AKCIJE =========================
+ 212   2          else  
+ 213   2          { //  if(potpatosni_prekidac_ulazi && potpatosni_prekidac_izlazi || ulazi && izlazi)
+ 214   3            if(!proslo_5s_spusti)
+ 215   3            {
+ 216   4              cekaj_5s = 0; // + rst brojaca
+ 217   4              brojacPrekida = 0;
+ 218   4              
+ 219   4              //motor = 0;    // + ako je u akciji
+ 220   4              if(motor != 0 || granicni_prekidac_podignuta) // - akcije: motor_radi || motor_stoji__gore = rampa_pod
+             -ignuta
+ 221   4              {
+ 222   5                if(!granicni_prekidac_spustena)
+ 223   5                  motor = 2;
+ 224   5                else
+ 225   5                {
+ 226   6                  motor = 0;
+ 227   6                }
+ 228   5              }
+ 229   4              else  // motor = 0;
+ 230   4              {
+ 231   5                granicni_prekidac_spustena = 1;
+ 232   5                granicni_prekidac_podignuta = 0;
+ 233   5              }
+ 234   4            }
+C51 COMPILER V9.60.7.0   MAIN                                                              06/17/2025 15:03:57 PAGE 5   
+
+ 235   3          }
+ 236   2          //==========================//==========================//=================
+ 237   2          
+ 238   2          //========================== "Osvezavanje ulaza" ==========================
+ 239   2          predhodnoStanjeTasteraP0_0 = stanjeTasteraP0_0;
+ 240   2          predhodnoStanjeTasteraP0_1 = stanjeTasteraP0_1;
+ 241   2          predhodnoStanjeTasteraP0_2 = stanjeTasteraP0_2;
+ 242   2          predhodnoStanjeTasteraP0_3 = stanjeTasteraP0_3;
+ 243   2          
+ 244   2          //========================== OSVEZAVANJE IZLAZA ==========================
+ 245   2          if(motor == 0)  // motor je zaustavljen
+ 246   2          {
+ 247   3            P2_0 = 0;
+ 248   3            P2_1 = 0;
+ 249   3          }
+ 250   2          else if(motor == 1) // motor podize rampu
+ 251   2          {
+ 252   3            P2_0 = 1;
+ 253   3            P2_1 = 0;
+ 254   3          }
+ 255   2          else if(motor == 2) // motor spusta rampu
+ 256   2          {
+ 257   3            P2_0 = 0;
+ 258   3            P2_1 = 1;
+ 259   3          }
+ 260   2          
+ 261   2          if(cekaj_5s)  // indikatori
+ 262   2            P2_2 = 1;
+ 263   2          else
+ 264   2            P2_2 = 0;
+ 265   2          
+ 266   2          if(granicni_prekidac_podignuta)
+ 267   2            P2_4 = 1;
+ 268   2          else
+ 269   2            P2_4 = 0;
+ 270   2          if(granicni_prekidac_spustena)
+ 271   2            P2_6 = 1;
+ 272   2          else
+ 273   2            P2_6 = 0;
+ 274   2          if(potpatosni_prekidac_ulazi)
+ 275   2            P2_3 = 1;
+ 276   2          else
+ 277   2            P2_3 = 0;
+ 278   2          if(potpatosni_prekidac_izlazi)
+ 279   2            P2_7 = 1;
+ 280   2          else
+ 281   2            P2_7 = 0;
+ 282   2          //==========================//==========================//=================
+ 283   2        }
+ 284   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    586    ----
+   CONSTANT SIZE    =      9    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      6      15
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
