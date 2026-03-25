@@ -1,6 +1,7 @@
 # Parking-Barrier-Control-System
 
-## Zadatak projekta:
+## Projekat iz predmeta Mikroprocesorski upravljački uređaji
+Zadatak projekta:
 Implementirati program za rad parking rampe. 
 Rampa se sastoji od motora koji moze da se okrece u dva smera (podizanje i spustanje rampe) koji se kontrolise pomocu dva digitalna izlaza. 
 Na samoj rampi se nalaze dva granicna prekidaca koji govore o krajnjim polozajima rampe (rampa spustena, rampa podignuta). 
